@@ -156,3 +156,35 @@ def chunks(records, max_chars=24000):
             batch += part
     if batch:
         yield batch
+
+
+
+def terminology_report(rows, guild_id):
+    """Exact message-frequency counts for repeated words in written journal text.
+
+    Strip the separately labeled model image notes so model wording never inflates
+    the owner's vocabulary statistics. Meanings remain for the evidence review.
+    """
+    import re
+    from collections import Counter, defaultdict
+    stop = set("the and that this with from have was were are for but not you your just like then when what how did does do had has its it im ive ill id can could would should into out off on at of to a an is be been as so my me we us our they them their there here if or in i am up down got get see saw very more some all about after before because also only than over still really today now dont didnt didnt thats these those will want wanted going went think thought looking look much bit price market trade entry chart image observation visible labels unreadable uncertain".split())
+    counts, examples = Counter(), defaultdict(list)
+    for mid, cid, author, date, content in rows:
+        raw = content.split('\n[Image observation]\n', 1)[0]
+        words = set(w.lower() for w in re.findall(r"[A-Za-z][A-Za-z0-9]*", raw))
+        for word in words - stop:
+            if len(word) < 2:
+                continue
+            counts[word] += 1
+            if len(examples[word]) < 3:
+                examples[word].append(f'https://discord.com/channels/{guild_id}/{cid}/{mid}')
+    ranked = [(word, count) for word, count in counts.most_common(40) if count >= 2]
+    result = '## Repeated written words and abbreviations\n\n'
+    result += 'Exact count of messages containing each word (case-insensitive; each message counts once). Common filler words are excluded. These counts cover written text only, not text inside images or AI image descriptions; frequency does not establish an entry trigger or profitability.\n\n'
+    if not ranked:
+        return result + 'No repeated terms found in this scope.\n\n'
+    result += '| Term | Messages | Example sources |\n|---|---:|---|\n'
+    for word, count in ranked:
+        links = ' '.join(f'[source {n}]({url})' for n, url in enumerate(examples[word], 1))
+        result += f'| {word} | {count} | {links} |\n'
+    return result + '\n'

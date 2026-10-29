@@ -6,6 +6,9 @@ Owner-only bot that reads journal text and chart screenshots across the channels
 
 | Command | What it does |
 |---|---|
+| `/export` | Export live messages and original image files; optional start_date/end_date (UTC, inclusive end). No OpenAI calls. |
+| `/export_status` | Background export progress and number of ZIP parts. |
+| `/export_download part:1` | Download one ZIP part privately; repeat for every part and upload them to ChatGPT. |
 | `/read_history` | Refresh accessible history, analyze uncached images, and produce a journal review. Optional question, start_date, and end_date. No dates means all imported history. |
 | `/status` | Import progress, image-analysis counts, and review progress. |
 | `/report` | Download the latest complete or partial review privately. |
@@ -61,3 +64,18 @@ Python 3.12; `pip install -r requirements.txt`, then `python -m unittest discove
 Offline tests cover image-only posts, cache reuse and invalidation, genuine vision payload construction, failed-image coverage, migration/restart state, source preservation during batching, owner access, search permissions, and deletion cleanup. Actual Discord/API calls and Railway deployment must be verified using the owner's accounts; tests use mocks and no credentials.
 
 API references: [OpenAI vision](https://developers.openai.com/api/docs/guides/images-vision), [discord.py](https://discordpy.readthedocs.io/en/stable/), [Discord CDN URLs](https://discord.com/developers/docs/reference#signed-attachment-cdn-urls), [Railway services](https://docs.railway.com/services).
+
+
+## Export images and messages to ChatGPT
+
+Run `/export start_date:2026-10-01 end_date:2026-10-28`, check `/export_status`, then run `/export_download part:1`, `part:2`, etc. No dates exports all available history. Download every part and upload them in your ChatGPT conversation. This does not automatically send anything to ChatGPT or call OpenAI.
+
+The export reads live history in discovered accessible text channels and active/archived threads. Each message JSON includes original text, author/name ID, timestamp, channel, Discord link, reply ID, attachment metadata, and image paths/part names. Reply targets outside the range are not fetched separately. ZIPs contain original downloaded PNG/JPEG/WebP/GIF bytes without resizing, including supported Discord-proxied embed images. Video and other attachments are metadata only. External images without a supported Discord proxy, inaccessible threads and deleted messages cannot be downloaded.
+
+Exports persist under `DATA_DIR/export`; only the latest export is kept and a new export replaces it. No journal files are committed to GitHub. Downloads require the current server owner and recheck channel access. ZIP parts are capped at 7 MB (or the server upload limit minus overhead). A single image larger than the part limit is explicitly skipped; see each message's image errors and the final manifest for coverage. Total output is capped at 1 GiB; if it fails, choose a smaller date range. Incomplete exports cannot be downloaded. A restart interrupts a running export; rerun it. Completed exports survive restarts on a persistent volume.
+
+## Trading-journal review focus
+
+`/read_history` now defaults to recurring terminology, premarket scenarios, intraday observations, documented entry reasons and confluence, recorded outcomes, and repeated habits. It asks for source evidence and counterexamples and separates planned trades from actual executions. The report also includes deterministic repeated-word/abbreviation counts from written messages (each word counts once per message), with original source links. These counts exclude model image descriptions; chart text is handled by the vision evidence review and is not represented as an exact OCR frequency count. Counts are across the imported human journal posts, not only the owner's posts if others contribute.
+
+For independent checking in ChatGPT, upload `/report` together with all `/export_download` ZIP parts for the same date range. Images can be unreadable or unsupported; check the coverage and error lists. `/ask` and `/summary` remain bounded shortcuts; use `/read_history` without dates for the full accessible imported journal.
